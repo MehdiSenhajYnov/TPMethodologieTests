@@ -8,6 +8,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.extensions.spring.SpringExtension
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -27,7 +28,7 @@ class BookDAOIT(
         beforeTest {
             performQuery(
                 // language=sql
-                "DELETE FROM book"
+                "TRUNCATE TABLE book RESTART IDENTITY"
             )
         }
 
@@ -36,11 +37,11 @@ class BookDAOIT(
             performQuery(
                 // language=sql
                 """
-               insert into book (title, author)
+               insert into book (title, author, is_reserved)
                values 
-                   ('Hamlet', 'Shakespeare'),
-                   ('Les fleurs du mal', 'Beaudelaire'),
-                   ('Harry Potter', 'Rowling');
+                   ('Hamlet', 'Shakespeare', false),
+                   ('Les fleurs du mal', 'Beaudelaire', false),
+                   ('Harry Potter', 'Rowling', false);
             """.trimIndent()
             )
 
@@ -49,7 +50,9 @@ class BookDAOIT(
 
             // THEN
             res.shouldContainExactlyInAnyOrder(
-                Book("Hamlet", "Shakespeare"), Book("Les fleurs du mal", "Beaudelaire"), Book("Harry Potter", "Rowling")
+                Book("Hamlet", "Shakespeare", isReserved = false), 
+                Book("Les fleurs du mal", "Beaudelaire", isReserved = false), 
+                Book("Harry Potter", "Rowling", isReserved = false)
             )
         }
 
@@ -69,7 +72,107 @@ class BookDAOIT(
                 this["id"].shouldNotBeNull().shouldBeInstanceOf<Int>()
                 this["title"].shouldBe("Les misérables")
                 this["author"].shouldBe("Victor Hugo")
+                this["is_reserved"].shouldBe(false)
             }
+        }
+
+        test("get book by id should return book when it exists") {
+            // GIVEN
+            performQuery(
+                // language=sql
+                """
+                insert into book (title, author, is_reserved)
+                values ('Les misérables', 'Victor Hugo', false);
+            """.trimIndent()
+            )
+
+            // WHEN
+            val res = bookDAO.getBookById(1)
+
+            // THEN
+            res.shouldNotBeNull()
+            res.name.shouldBe("Les misérables")
+            res.author.shouldBe("Victor Hugo")
+            res.isReserved.shouldBe(false)
+        }
+
+        test("get book by id should return null when book does not exist") {
+            // WHEN
+            val res = bookDAO.getBookById(999)
+
+            // THEN
+            res.shouldBeNull()
+        }
+
+        test("reserve book should return true when book exists and is not reserved") {
+            // GIVEN
+            performQuery(
+                // language=sql
+                """
+                insert into book (title, author, is_reserved)
+                values ('Les misérables', 'Victor Hugo', false);
+            """.trimIndent()
+            )
+
+            // WHEN
+            val result = bookDAO.reserveBook(1)
+
+            // THEN
+            result.shouldBe(true)
+            
+            val res = performQuery(
+                // language=sql
+                "SELECT * from book WHERE id = 1"
+            )
+            res.shouldHaveSize(1)
+            res.first()["is_reserved"].shouldBe(true)
+        }
+
+        test("reserve book should return false when book is already reserved") {
+            // GIVEN
+            performQuery(
+                // language=sql
+                """
+                insert into book (title, author, is_reserved)
+                values ('Les misérables', 'Victor Hugo', true);
+            """.trimIndent()
+            )
+
+            // WHEN
+            val result = bookDAO.reserveBook(1)
+
+            // THEN
+            result.shouldBe(false)
+        }
+
+        test("reserve book should return false when book does not exist") {
+            // WHEN
+            val result = bookDAO.reserveBook(999)
+
+            // THEN
+            result.shouldBe(false)
+        }
+
+        test("get all books should include reservation status") {
+            // GIVEN
+            performQuery(
+                // language=sql
+                """
+                insert into book (title, author, is_reserved)
+                values 
+                    ('Les misérables', 'Victor Hugo', true),
+                    ('Hamlet', 'Shakespeare', false);
+            """.trimIndent()
+            )
+
+            // WHEN
+            val res = bookDAO.getAllBooks()
+
+            // THEN
+            res.shouldContainExactlyInAnyOrder(
+                Book("Les misérables", "Victor Hugo", isReserved = true),
+                Book("Hamlet", "Shakespeare", isReserved = false)
+            )
         }
 
         afterSpec {

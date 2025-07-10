@@ -5,4 +5,6 @@ import com.jicay.bookmanagement.domain.model.Book
 interface BookPort {
     fun getAllBooks(): List<Book>
     fun createBook(book: Book)
+    fun getBookById(id: Int): Book?
+    fun reserveBook(id: Int): Boolean
 }

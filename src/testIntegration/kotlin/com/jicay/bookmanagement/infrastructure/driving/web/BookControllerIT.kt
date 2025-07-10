@@ -38,7 +38,8 @@ class BookControllerIT(
                         [
                           {
                             "name": "A",
-                            "author": "B"
+                            "author": "B",
+                            "isReserved": false
                           }
                         ]
                         """.trimIndent()
@@ -90,5 +91,70 @@ class BookControllerIT(
         }
 
         verify(exactly = 0) { bookUseCase.addBook(any()) }
+    }
+
+    test("rest route post book reserve should return 200 when reservation succeeds") {
+        // GIVEN
+        every { bookUseCase.reserveBook(1) } returns true
+
+        // WHEN
+        mockMvc.post("/books/1/reserve") {
+            accept = APPLICATION_JSON
+        }.andExpect {
+            status { isOk() }
+        }
+
+        // THEN
+        verify(exactly = 1) { bookUseCase.reserveBook(1) }
+    }
+
+    test("rest route post book reserve should return 400 when reservation fails") {
+        // GIVEN
+        every { bookUseCase.reserveBook(1) } returns false
+
+        // WHEN
+        mockMvc.post("/books/1/reserve") {
+            accept = APPLICATION_JSON
+        }.andExpect {
+            status { isBadRequest() }
+        }
+
+        // THEN
+        verify(exactly = 1) { bookUseCase.reserveBook(1) }
+    }
+
+    test("rest route get books should include reservation status") {
+        // GIVEN
+        every { bookUseCase.getAllBooks() } returns listOf(
+            Book("A", "B", isReserved = true),
+            Book("C", "D", isReserved = false)
+        )
+
+        // WHEN
+        mockMvc.get("/books")
+            //THEN
+            .andExpect {
+                status { isOk() }
+                content { content { APPLICATION_JSON } }
+                content {
+                    json(
+                        // language=json
+                        """
+                        [
+                          {
+                            "name": "A",
+                            "author": "B",
+                            "isReserved": true
+                          },
+                          {
+                            "name": "C",
+                            "author": "D",
+                            "isReserved": false
+                          }
+                        ]
+                        """.trimIndent()
+                    )
+                }
+            }
     }
 })

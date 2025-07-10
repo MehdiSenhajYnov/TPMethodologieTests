@@ -15,4 +15,17 @@ class BookUseCase(
     fun addBook(book: Book) {
         bookPort.createBook(book)
     }
+
+    fun reserveBook(id: Int): Boolean {
+        val book = bookPort.getBookById(id)
+        if (book == null) {
+            return false
+        }
+        
+        if (book.isReserved) {
+            return false
+        }
+        
+        return bookPort.reserveBook(id)
+    }
 }
